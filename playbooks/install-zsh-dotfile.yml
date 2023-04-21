@@ -1,0 +1,52 @@
+- name: Install zsh and dotfiles
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: clone dotfiles
+      ansible.builtin.git:
+        repo: git@github.com:alex5529/.dotfiles.git
+        dest: "{{ lookup('env', 'HOME') }}/.dotfiles"
+
+    - name: install stow, zsh, fzf
+      ansible.builtin.apt:
+        pkg:
+          - stow
+          - zsh
+          - fzf
+      become: true
+
+    - name: Change shell
+      user:
+        name: alexanderl
+        shell: /bin/zsh
+      become: true
+
+    - name: Check if oh-my-zsh is already installed
+      stat:
+        path: "{{ lookup('env', 'HOME') }}/.oh-my-zsh"
+      register: oh_my_zsh
+
+    - name: Oh-My-Zsh
+      shell: sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+      become_user: alexanderl
+      when: oh_my_zsh.stat.exists == False
+
+    - name: Install zsh-autosuggestions
+      ansible.builtin.git:
+        repo: 'https://github.com/zsh-users/zsh-autosuggestions.git'
+        dest: "~/.oh-my-zsh/plugins/zsh-autosuggestions"
+      when: oh_my_zsh.stat.exists == False
+
+    - name: Checking if .zshrc already exists
+      stat:
+        path: "{{ lookup('env', 'HOME') }}/.zshrc"
+      register: file_data
+
+    - name: Remove .zshrc if it exists and is not a stowed file
+      file:
+        path: "{{ lookup('env', 'HOME') }}/.zshrc"
+        state: absent
+      when: file_data.stat.islnk is defined and file_data.stat.islnk == False
+
+    - name: Stow dotfiles
+      shell: cd $HOME/.dotfiles && ./install
